@@ -191,7 +191,14 @@ async function renameProjectActiveShortcuts(oldStr, newStr) {
  * Main rename function
  */
 async function renameProject({ previousName, currentName, vendorName }) {
-  console.log(`Starting rename: ${previousName} → ${currentName} in vendor "${vendorName}"`);
+  const startTime = Date.now();
+  console.log(`\n${'='.repeat(80)}`);
+  console.log(`🔄 RENAME JOB STARTED`);
+  console.log(`${'='.repeat(80)}`);
+  console.log(`📋 Details: ${previousName} → ${currentName}`);
+  console.log(`📁 Vendor: ${vendorName}`);
+  console.log(`⏰ Start Time: ${new Date().toLocaleString()}`);
+  console.log(`${'='.repeat(80)}\n`);
 
   // Validate inputs
   if (!previousName || !currentName || !vendorName) {
@@ -203,45 +210,70 @@ async function renameProject({ previousName, currentName, vendorName }) {
   }
 
   // Step 1: Find vendor folder
-  console.log(`Finding vendor folder: ${vendorName}`);
+  console.log(`[1/6] 🔍 Finding vendor folder: ${vendorName}...`);
   const vendorFolderId = await findVendorFolder(vendorName);
-  console.log(`Found vendor folder ID: ${vendorFolderId}`);
+  console.log(`      ✅ Found vendor folder ID: ${vendorFolderId}`);
 
   // Step 2: Find project folder
-  console.log(`Finding project folder: ${previousName}`);
+  console.log(`\n[2/6] 🔍 Finding project folder: ${previousName}...`);
   const projectFolder = await findFolderByName(vendorFolderId, previousName);
 
   if (!projectFolder) {
     throw new Error(`Project "${previousName}" not found in vendor folder "${vendorName}"`);
   }
-  console.log(`Found project folder ID: ${projectFolder.id}`);
+  console.log(`      ✅ Found project folder ID: ${projectFolder.id}`);
 
   // Step 3: Rename main project folder
-  console.log(`Renaming main project folder`);
+  console.log(`\n[3/6] 📝 Renaming main project folder...`);
   await renameItem(projectFolder.id, projectFolder.name, previousName, currentName);
+  console.log(`      ✅ Main folder renamed`);
 
   // Step 4: Recursively rename all subfolders
-  console.log(`Renaming subfolders...`);
+  console.log(`\n[4/6] 📂 Renaming subfolders recursively...`);
   const foldersRenamed = await renameAllFolders(projectFolder.id, previousName, currentName);
-  console.log(`Renamed ${foldersRenamed} subfolders`);
+  console.log(`      ✅ Renamed ${foldersRenamed} subfolders`);
 
   // Step 5: Recursively rename all files
-  console.log(`Renaming files...`);
+  console.log(`\n[5/6] 📄 Renaming files recursively...`);
   const filesRenamed = await renameAllFiles(projectFolder.id, previousName, currentName);
-  console.log(`Renamed ${filesRenamed} files`);
+  console.log(`      ✅ Renamed ${filesRenamed} files`);
 
   // Step 6: Update "Projects Active" shortcuts
-  console.log(`Updating shortcuts in "${PROJECTS_ACTIVE}"`);
+  console.log(`\n[6/6] 🔗 Updating shortcuts in "${PROJECTS_ACTIVE}"...`);
   const shortcutsRenamed = await renameProjectActiveShortcuts(previousName, currentName);
-  console.log(`Renamed ${shortcutsRenamed} shortcuts`);
+  console.log(`      ✅ Renamed ${shortcutsRenamed} shortcuts`);
 
-  console.log(`Rename completed successfully`);
+  // Calculate duration
+  const endTime = Date.now();
+  const durationMs = endTime - startTime;
+  const durationSeconds = (durationMs / 1000).toFixed(2);
+  const durationMinutes = (durationMs / 60000).toFixed(2);
+
+  const totalRenamed = foldersRenamed + 1 + filesRenamed + shortcutsRenamed;
+
+  console.log(`\n${'='.repeat(80)}`);
+  console.log(`✅ RENAME JOB COMPLETED SUCCESSFULLY`);
+  console.log(`${'='.repeat(80)}`);
+  console.log(`📊 Statistics:`);
+  console.log(`   • Main folder:  1`);
+  console.log(`   • Subfolders:   ${foldersRenamed}`);
+  console.log(`   • Files:        ${filesRenamed}`);
+  console.log(`   • Shortcuts:    ${shortcutsRenamed}`);
+  console.log(`   • TOTAL:        ${totalRenamed} items renamed`);
+  console.log(`\n⏱️  Duration:`);
+  console.log(`   • ${durationSeconds} seconds`);
+  console.log(`   • ${durationMinutes} minutes`);
+  console.log(`\n⏰ End Time: ${new Date().toLocaleString()}`);
+  console.log(`${'='.repeat(80)}\n`);
 
   return {
     message: 'Project renamed successfully',
     foldersRenamed: foldersRenamed + 1, // +1 for main folder
     filesRenamed,
-    shortcutsRenamed
+    shortcutsRenamed,
+    totalRenamed,
+    durationSeconds: parseFloat(durationSeconds),
+    durationMinutes: parseFloat(durationMinutes)
   };
 }
 
