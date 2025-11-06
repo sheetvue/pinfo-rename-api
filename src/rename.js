@@ -1,7 +1,7 @@
 const { getDriveClient } = require('./auth');
 
 // Constants
-const PRODUCTION_ROOT_FOLDER_ID = '0AG1kEkTxGUH8Uk9PVA';
+const PRODUCTION_ROOT_FOLDER_ID = '0ALtqj3zJeCzDUk9PVA';
 const PINFO_SHARED_FOLDER = 'PINFO Shared Folder';
 const PROJECTS_ACTIVE = 'Projects Active';
 
@@ -9,14 +9,18 @@ const PROJECTS_ACTIVE = 'Projects Active';
  * Find a folder by name within a parent folder
  */
 async function findFolderByName(parentId, folderName) {
-  const drive = getDriveClient();
+  const drive = await getDriveClient();
 
   const query = `'${parentId}' in parents and name = '${folderName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
 
   const response = await drive.files.list({
     q: query,
     fields: 'files(id, name)',
-    pageSize: 1
+    pageSize: 1,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+    corpora: 'drive',
+    driveId: PRODUCTION_ROOT_FOLDER_ID
   });
 
   if (!response.data.files || response.data.files.length === 0) {
@@ -27,21 +31,14 @@ async function findFolderByName(parentId, folderName) {
 }
 
 /**
- * Find vendor folder: Root → "PINFO Shared Folder" → vendorName
+ * Find vendor folder: Root → vendorName (vendors are directly in Shared Drive root)
  */
 async function findVendorFolder(vendorName) {
-  // Step 1: Find "PINFO Shared Folder" in root
-  const pinfoSharedFolder = await findFolderByName(PRODUCTION_ROOT_FOLDER_ID, PINFO_SHARED_FOLDER);
-
-  if (!pinfoSharedFolder) {
-    throw new Error(`${PINFO_SHARED_FOLDER} not found in root folder`);
-  }
-
-  // Step 2: Find vendor folder inside "PINFO Shared Folder"
-  const vendorFolder = await findFolderByName(pinfoSharedFolder.id, vendorName);
+  // Find vendor folder directly in the Shared Drive root
+  const vendorFolder = await findFolderByName(PRODUCTION_ROOT_FOLDER_ID, vendorName);
 
   if (!vendorFolder) {
-    throw new Error(`Vendor folder "${vendorName}" not found in ${PINFO_SHARED_FOLDER}`);
+    throw new Error(`Vendor folder "${vendorName}" not found in Shared Drive root`);
   }
 
   return vendorFolder.id;
@@ -51,7 +48,7 @@ async function findVendorFolder(vendorName) {
  * Rename a single file/folder using string replacement
  */
 async function renameItem(itemId, itemName, oldStr, newStr) {
-  const drive = getDriveClient();
+  const drive = await getDriveClient();
 
   const newName = itemName.replace(oldStr, newStr);
 
@@ -64,7 +61,8 @@ async function renameItem(itemId, itemName, oldStr, newStr) {
     fileId: itemId,
     requestBody: {
       name: newName
-    }
+    },
+    supportsAllDrives: true
   });
 
   return true;
@@ -74,7 +72,7 @@ async function renameItem(itemId, itemName, oldStr, newStr) {
  * List all items (folders or files) in a folder
  */
 async function listItems(parentId, mimeType = null) {
-  const drive = getDriveClient();
+  const drive = await getDriveClient();
   let items = [];
   let pageToken = null;
 
@@ -88,7 +86,11 @@ async function listItems(parentId, mimeType = null) {
       q: query,
       fields: 'nextPageToken, files(id, name, mimeType)',
       pageSize: 1000,
-      pageToken: pageToken
+      pageToken: pageToken,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      corpora: 'drive',
+      driveId: PRODUCTION_ROOT_FOLDER_ID
     });
 
     items = items.concat(response.data.files || []);

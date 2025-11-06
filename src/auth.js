@@ -1,31 +1,38 @@
 const { google } = require('googleapis');
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config();
 
 /**
  * Creates and returns an authenticated Google Drive API client
- * Uses OAuth refresh token to generate access tokens automatically
+ * Uses Service Account JSON key file for authentication
  */
 function getAuthenticatedClient() {
-  const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    'urn:ietf:wg:oauth:2.0:oob' // Redirect URI for installed apps
-  );
+  // Load service account credentials from JSON file
+  const keyFilePath = path.join(__dirname, '..', process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE || 'service-account-key.json');
 
-  // Set the refresh token
-  oauth2Client.setCredentials({
-    refresh_token: process.env.GOOGLE_REFRESH_TOKEN
+  if (!fs.existsSync(keyFilePath)) {
+    throw new Error(`Service account key file not found at: ${keyFilePath}`);
+  }
+
+  const credentials = JSON.parse(fs.readFileSync(keyFilePath, 'utf8'));
+
+  // Create auth client from service account
+  const auth = new google.auth.GoogleAuth({
+    credentials: credentials,
+    scopes: ['https://www.googleapis.com/auth/drive']
   });
 
-  return oauth2Client;
+  return auth;
 }
 
 /**
  * Returns an authenticated Google Drive v3 client
  */
-function getDriveClient() {
+async function getDriveClient() {
   const auth = getAuthenticatedClient();
-  return google.drive({ version: 'v3', auth });
+  const authClient = await auth.getClient();
+  return google.drive({ version: 'v3', auth: authClient });
 }
 
 module.exports = {
