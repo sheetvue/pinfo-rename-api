@@ -1,0 +1,18 @@
+{
+  "name": "pinfo-rename-api",
+  "version": "1.0.0",
+  "description": "Node.js API for renaming PINFO projects in Google Drive",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "keywords": ["pinfo", "google-drive", "rename", "api"],
+  "author": "SheetVue",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "googleapis": "^128.0.0",
+    "dotenv": "^16.3.1"
+  }
+}
