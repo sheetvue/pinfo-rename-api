@@ -1,5 +1,6 @@
 const express = require('express');
 const { renameProject } = require('./rename');
+const { findProjectRow, updateStatusColumns } = require('./sheets');
 
 const router = express.Router();
 
@@ -44,6 +45,22 @@ router.post('/rename-project', async (req, res) => {
 
   } catch (error) {
     console.error('Rename error:', error);
+
+    const { previousName } = req.body;
+
+    // Try to update spreadsheet status columns with error
+    if (previousName) {
+      try {
+        const rowIndex = await findProjectRow(previousName);
+        if (rowIndex) {
+          await updateStatusColumns(rowIndex, error.message || 'An error occurred during rename', true);
+          console.log(`✅ Updated spreadsheet with error status`);
+        }
+      } catch (sheetError) {
+        console.error('❌ Failed to update spreadsheet with error:', sheetError.message);
+        // Continue with error response even if sheet update fails
+      }
+    }
 
     // Return error response
     res.status(500).json({

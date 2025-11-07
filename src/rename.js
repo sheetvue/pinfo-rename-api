@@ -1,4 +1,6 @@
 const { getDriveClient } = require('./auth');
+const { findProjectRow, updateProjectId, updateStatusColumns, setRenamingStatus } = require('./sheets');
+const { triggerRealtimeSync } = require('./firestore');
 
 // Constants
 const PRODUCTION_ROOT_FOLDER_ID = '0ALtqj3zJeCzDUk9PVA';
@@ -210,12 +212,12 @@ async function renameProject({ previousName, currentName, vendorName }) {
   }
 
   // Step 1: Find vendor folder
-  console.log(`[1/6] 🔍 Finding vendor folder: ${vendorName}...`);
+  console.log(`[1/9] 🔍 Finding vendor folder: ${vendorName}...`);
   const vendorFolderId = await findVendorFolder(vendorName);
   console.log(`      ✅ Found vendor folder ID: ${vendorFolderId}`);
 
   // Step 2: Find project folder
-  console.log(`\n[2/6] 🔍 Finding project folder: ${previousName}...`);
+  console.log(`\n[2/9] 🔍 Finding project folder: ${previousName}...`);
   const projectFolder = await findFolderByName(vendorFolderId, previousName);
 
   if (!projectFolder) {
@@ -224,24 +226,37 @@ async function renameProject({ previousName, currentName, vendorName }) {
   console.log(`      ✅ Found project folder ID: ${projectFolder.id}`);
 
   // Step 3: Rename main project folder
-  console.log(`\n[3/6] 📝 Renaming main project folder...`);
+  console.log(`\n[3/9] 📝 Renaming main project folder...`);
   await renameItem(projectFolder.id, projectFolder.name, previousName, currentName);
   console.log(`      ✅ Main folder renamed`);
 
   // Step 4: Recursively rename all subfolders
-  console.log(`\n[4/6] 📂 Renaming subfolders recursively...`);
+  console.log(`\n[4/9] 📂 Renaming subfolders recursively...`);
   const foldersRenamed = await renameAllFolders(projectFolder.id, previousName, currentName);
   console.log(`      ✅ Renamed ${foldersRenamed} subfolders`);
 
   // Step 5: Recursively rename all files
-  console.log(`\n[5/6] 📄 Renaming files recursively...`);
+  console.log(`\n[5/9] 📄 Renaming files recursively...`);
   const filesRenamed = await renameAllFiles(projectFolder.id, previousName, currentName);
   console.log(`      ✅ Renamed ${filesRenamed} files`);
 
   // Step 6: Update "Projects Active" shortcuts
-  console.log(`\n[6/6] 🔗 Updating shortcuts in "${PROJECTS_ACTIVE}"...`);
+  console.log(`\n[6/9] 🔗 Updating shortcuts in "${PROJECTS_ACTIVE}"...`);
   const shortcutsRenamed = await renameProjectActiveShortcuts(previousName, currentName);
   console.log(`      ✅ Renamed ${shortcutsRenamed} shortcuts`);
+
+  // Step 7: Find project row in spreadsheet
+  console.log(`\n[7/9] 📋 Finding project row in Google Sheets...`);
+  const rowIndex = await findProjectRow(previousName);
+  if (!rowIndex) {
+    throw new Error(`Project "${previousName}" not found in spreadsheet`);
+  }
+  console.log(`      ✅ Found project at row ${rowIndex}`);
+
+  // Step 8: Update column B (Project ID) with new value
+  console.log(`\n[8/9] 📝 Updating spreadsheet column B with new ID...`);
+  await updateProjectId(rowIndex, currentName);
+  console.log(`      ✅ Column B updated with: ${currentName}`);
 
   // Calculate duration
   const endTime = Date.now();
@@ -250,6 +265,31 @@ async function renameProject({ previousName, currentName, vendorName }) {
   const durationMinutes = (durationMs / 60000).toFixed(2);
 
   const totalRenamed = foldersRenamed + 1 + filesRenamed + shortcutsRenamed;
+
+  // Build response object
+  const responseData = {
+    message: 'Project renamed successfully',
+    foldersRenamed: foldersRenamed + 1, // +1 for main folder
+    filesRenamed,
+    shortcutsRenamed,
+    totalRenamed,
+    durationSeconds: parseFloat(durationSeconds),
+    durationMinutes: parseFloat(durationMinutes)
+  };
+
+  // Step 9: Update status columns with full JSON response
+  console.log(`\n[9/9] 📊 Updating status columns with response...`);
+  await updateStatusColumns(rowIndex, { status: true, data: responseData }, false);
+  console.log(`      ✅ Status columns updated`);
+
+  // Step 10: Trigger Firestore real-time sync
+  console.log(`\n[10/9] 🔔 Triggering Firestore real-time sync...`);
+  await triggerRealtimeSync({
+    previousName,
+    currentName,
+    changeId: true // ID was changed
+  });
+  console.log(`      ✅ Firestore sync triggered`);
 
   console.log(`\n${'='.repeat(80)}`);
   console.log(`✅ RENAME JOB COMPLETED SUCCESSFULLY`);
@@ -266,15 +306,7 @@ async function renameProject({ previousName, currentName, vendorName }) {
   console.log(`\n⏰ End Time: ${new Date().toLocaleString()}`);
   console.log(`${'='.repeat(80)}\n`);
 
-  return {
-    message: 'Project renamed successfully',
-    foldersRenamed: foldersRenamed + 1, // +1 for main folder
-    filesRenamed,
-    shortcutsRenamed,
-    totalRenamed,
-    durationSeconds: parseFloat(durationSeconds),
-    durationMinutes: parseFloat(durationMinutes)
-  };
+  return responseData;
 }
 
 module.exports = {

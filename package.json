@@ -7,12 +7,18 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js"
   },
-  "keywords": ["pinfo", "google-drive", "rename", "api"],
+  "keywords": [
+    "pinfo",
+    "google-drive",
+    "rename",
+    "api"
+  ],
   "author": "SheetVue",
   "license": "ISC",
   "dependencies": {
+    "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "googleapis": "^128.0.0",
-    "dotenv": "^16.3.1"
+    "firebase-admin": "^13.6.0",
+    "googleapis": "^128.0.0"
   }
 }
